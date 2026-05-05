@@ -2,28 +2,20 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Cpu, Monitor, ShoppingBag, Trash2, Plus, MessageCircle, 
   ShieldCheck, Zap, X, HardDrive, Gamepad2, ArrowLeft, 
-  ChevronRight, Fan, Box, Edit3, Save, Image as ImageIcon
+  ChevronRight, Fan, Box, Edit3, Save, AlertCircle, CheckCircle2
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { 
   getFirestore, collection, onSnapshot, addDoc, 
-  updateDoc, deleteDoc, doc, query 
+  updateDoc, deleteDoc, doc 
 } from 'firebase/firestore';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 
-/**
- * --- HỆ THỐNG CẤU HÌNH AN TOÀN ---
- * Giải pháp khắc phục lỗi "import.meta" bằng cách kiểm tra môi trường linh hoạt
- */
+// --- HỆ THỐNG CẤU HÌNH AN TOÀN ---
 const getEnv = (key, fallback) => {
   try {
-    // Thử lấy từ Vite (Vercel)
     if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) {
       return import.meta.env[key];
-    }
-    // Thử lấy từ biến môi trường hệ thống
-    if (typeof process !== 'undefined' && process.env && process.env[key]) {
-      return process.env[key];
     }
   } catch (e) {}
   return fallback;
@@ -32,31 +24,30 @@ const getEnv = (key, fallback) => {
 const getFirebaseConfig = () => {
   const configStr = getEnv('VITE_FIREBASE_CONFIG', null);
   const globalConfig = typeof __firebase_config !== 'undefined' ? __firebase_config : null;
-  
   const finalConfig = configStr || globalConfig;
+  if (!finalConfig) return null;
   try {
     return typeof finalConfig === 'string' ? JSON.parse(finalConfig) : finalConfig;
-  } catch (e) {
-    return finalConfig; // Trả về object nếu đã là object
-  }
+  } catch (e) { return finalConfig; }
 };
 
 const config = getFirebaseConfig();
-const appId = getEnv('VITE_APP_ID', (typeof __app_id !== 'undefined' ? __app_id : 'tech-pc-store'));
+const appId = getEnv('VITE_APP_ID', (typeof __app_id !== 'undefined' ? __app_id : 'tech-pc-store-pro'));
 
 // Khởi tạo các dịch vụ
 let db = null;
 let auth = null;
 
 if (config && config.apiKey) {
-  const app = initializeApp(config);
-  db = getFirestore(app);
-  auth = getAuth(app);
+  try {
+    const app = initializeApp(config);
+    db = getFirestore(app);
+    auth = getAuth(app);
+  } catch (e) { console.error("Firebase init failed:", e); }
 }
 
 /**
  * --- COMPONENT NỀN NEURAL NETWORK 3D ---
- * Đã sửa lỗi bán kính âm và tối ưu hóa hiệu năng
  */
 const TechBackground = () => {
   const canvasRef = useRef(null);
@@ -73,34 +64,26 @@ const TechBackground = () => {
       canvas.height = window.innerHeight;
     };
 
-    const handleMouseMove = (e) => {
-      mouse.current = { x: e.clientX, y: e.clientY };
-    };
-
     window.addEventListener('resize', resize);
-    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mousemove', (e) => mouse.current = { x: e.clientX, y: e.clientY });
     resize();
 
     const particles = [];
-    for (let i = 0; i < 80; i++) {
+    for (let i = 0; i < 70; i++) {
       particles.push({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
         z: Math.random() * 800,
-        vx: (Math.random() - 0.5) * 0.5,
-        vy: (Math.random() - 0.5) * 0.5,
-        size: Math.random() * 2 + 1.5
+        vx: (Math.random() - 0.5) * 0.4,
+        vy: (Math.random() - 0.5) * 0.4,
+        size: Math.random() * 2 + 1
       });
     }
 
     const animate = () => {
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      const bgGrad = ctx.createRadialGradient(
-        canvas.width / 2, canvas.height / 2, 0,
-        canvas.width / 2, canvas.height / 2, canvas.width
-      );
+      const bgGrad = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, 0, canvas.width / 2, canvas.height / 2, canvas.width);
       bgGrad.addColorStop(0, '#0a1a3c');
       bgGrad.addColorStop(0.8, '#000000');
       ctx.fillStyle = bgGrad;
@@ -112,50 +95,36 @@ const TechBackground = () => {
         if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
         if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
 
-        const zPos = p.z + 100;
-        const scale = zPos > 0 ? fov / (fov + zPos) : 0;
+        const scale = fov / (fov + p.z + 100);
         if (scale <= 0) return;
-
         const x2d = (p.x - canvas.width / 2) * scale + canvas.width / 2;
         const y2d = (p.y - canvas.height / 2) * scale + canvas.height / 2;
 
-        // Vẽ các kết nối sáng
         for (let j = i + 1; j < particles.length; j++) {
           const p2 = particles[j];
           const dist = Math.sqrt(Math.pow(p.x - p2.x, 2) + Math.pow(p.y - p2.y, 2));
           if (dist < 150) {
             ctx.beginPath();
-            const alpha = (1 - dist / 150) * 0.3 * scale;
-            ctx.strokeStyle = `rgba(34, 211, 238, ${alpha})`;
-            ctx.lineWidth = 0.8 * scale;
+            ctx.strokeStyle = `rgba(34, 211, 238, ${(1 - dist / 150) * 0.3 * scale})`;
+            ctx.lineWidth = 0.5 * scale;
             ctx.moveTo(x2d, y2d);
             const scale2 = fov / (fov + p2.z + 100);
-            if (scale2 > 0) {
-              ctx.lineTo((p2.x - canvas.width / 2) * scale2 + canvas.width / 2, (p2.y - canvas.height / 2) * scale2 + canvas.height / 2);
-              ctx.stroke();
-            }
+            ctx.lineTo((p2.x - canvas.width / 2) * scale2 + canvas.width / 2, (p2.y - canvas.height / 2) * scale2 + canvas.height / 2);
+            ctx.stroke();
           }
         }
-
-        const radius = Math.max(0.1, p.size * scale);
         ctx.beginPath();
         ctx.fillStyle = `rgba(255, 255, 255, ${scale})`;
-        ctx.arc(x2d, y2d, radius, 0, Math.PI * 2);
+        ctx.arc(x2d, y2d, Math.max(0.1, p.size * scale), 0, Math.PI * 2);
         ctx.fill();
       });
-
       animationFrameId = requestAnimationFrame(animate);
     };
-
     animate();
-    return () => {
-      window.removeEventListener('resize', resize);
-      window.removeEventListener('mousemove', handleMouseMove);
-      cancelAnimationFrame(animationFrameId);
-    };
+    return () => { window.removeEventListener('resize', resize); cancelAnimationFrame(animationFrameId); };
   }, []);
 
-  return <div className="fixed inset-0 -z-50 bg-black"><canvas ref={canvasRef} className="w-full h-full" /></div>;
+  return <div className="fixed inset-0 -z-50"><canvas ref={canvasRef} className="w-full h-full" /></div>;
 };
 
 export default function App() {
@@ -166,6 +135,7 @@ export default function App() {
   const [activeImage, setActiveImage] = useState(null);
   const [modalType, setModalType] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
+  const [status, setStatus] = useState({ type: '', msg: '' });
   
   const [formData, setFormData] = useState({
     name: '', price: '', specs: '', image: '', category: 'Gaming', description: '',
@@ -175,15 +145,28 @@ export default function App() {
 
   const MESSENGER_ID = getEnv('VITE_MESSENGER_ID', "YOUR_PAGE_ID");
 
-  // --- LOGIC AUTH & REAL-TIME DATA ---
+  // Hiển thị thông báo trạng thái
   useEffect(() => {
-    if (!auth) return;
+    if (status.msg) {
+      const timer = setTimeout(() => setStatus({ type: '', msg: '' }), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [status]);
+
+  // Auth & Data Sync
+  useEffect(() => {
+    if (!auth) {
+      setStatus({ type: 'error', msg: 'Chưa tìm thấy VITE_FIREBASE_CONFIG trên Vercel.' });
+      return;
+    }
     const initAuth = async () => {
-      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-        await signInWithCustomToken(auth, __initial_auth_token);
-      } else {
-        await signInAnonymously(auth);
-      }
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (err) { setStatus({ type: 'error', msg: 'Lỗi đăng nhập: ' + err.message }); }
     };
     initAuth();
     return onAuthStateChanged(auth, setUser);
@@ -191,12 +174,14 @@ export default function App() {
 
   useEffect(() => {
     if (!db || !user) return;
-    // Đường dẫn chuẩn cho Firebase Artifacts
     const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'products');
     const unsubscribe = onSnapshot(colRef, (snapshot) => {
-      const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      setProducts(docs);
-    }, (err) => console.error("Lỗi đồng bộ Firestore:", err));
+      setProducts(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (err) => {
+      if (err.code === 'permission-denied') {
+        setStatus({ type: 'error', msg: 'Lỗi: Bạn chưa chỉnh Rules trên Firebase thành public.' });
+      }
+    });
     return () => unsubscribe();
   }, [user]);
 
@@ -207,43 +192,58 @@ export default function App() {
     }
   }, [selectedProduct]);
 
-  // --- CRUD FUNCTIONS ---
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!db || !user) return;
+    if (!db || !user) {
+      setStatus({ type: 'error', msg: 'Không thể lưu: Hệ thống chưa sẵn sàng.' });
+      return;
+    }
+    
+    setStatus({ type: 'loading', msg: 'Đang lưu dữ liệu...' });
     const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'products');
     
     try {
-      const finalData = { ...formData, gallery: formData.gallery?.length ? formData.gallery : [formData.image] };
+      const finalData = { 
+        ...formData, 
+        gallery: formData.gallery?.length ? formData.gallery : [formData.image],
+        updatedAt: Date.now() 
+      };
+      
       if (modalType === 'add') {
         await addDoc(colRef, finalData);
+        setStatus({ type: 'success', msg: 'Đã thêm bộ máy mới thành công!' });
       } else {
         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', editingItem.id), finalData);
+        setStatus({ type: 'success', msg: 'Đã cập nhật cấu hình thành công!' });
       }
       setModalType(null);
-    } catch (err) { console.error("Lưu thất bại:", err); }
+    } catch (err) {
+      setStatus({ type: 'error', msg: 'Lỗi khi lưu: ' + err.message });
+    }
   };
 
   const handleDelete = async (id, e) => {
     e.stopPropagation();
     if (!db || !user || !confirm("Xác nhận xóa bộ PC này?")) return;
-    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', id));
-    if (selectedProduct?.id === id) setSelectedProduct(null);
-  };
-
-  const handleOrder = (product) => {
-    const msg = `Xin chào! Tôi quan tâm bộ PC: ${product.name} (${product.price}đ)`;
-    window.open(`https://m.me/${MESSENGER_ID}?text=${encodeURIComponent(msg)}`, '_blank');
+    try {
+      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', id));
+      if (selectedProduct?.id === id) setSelectedProduct(null);
+      setStatus({ type: 'success', msg: 'Đã xóa dữ liệu.' });
+    } catch (err) { setStatus({ type: 'error', msg: 'Xóa thất bại: ' + err.message }); }
   };
 
   return (
     <div className="min-h-screen text-white font-sans selection:bg-cyan-500 bg-transparent relative overflow-x-hidden">
       <TechBackground />
       
-      {/* Texture Layer */}
-      <div className="fixed inset-0 pointer-events-none -z-40 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
+      {/* Toast Notification */}
+      {status.msg && (
+        <div className={`fixed top-24 right-6 z-[200] flex items-center gap-3 px-6 py-4 rounded-2xl border backdrop-blur-xl animate-in slide-in-from-right duration-300 ${status.type === 'error' ? 'bg-red-500/20 border-red-500/50 text-red-200' : status.type === 'success' ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-200' : 'bg-cyan-500/20 border-cyan-500/50 text-cyan-200'}`}>
+          {status.type === 'error' ? <AlertCircle size={20} /> : <CheckCircle2 size={20} />}
+          <span className="font-bold text-sm">{status.msg}</span>
+        </div>
+      )}
 
-      {/* Nav */}
       <nav className="sticky top-0 z-50 border-b border-white/5 bg-black/40 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-2 cursor-pointer group" onClick={() => setSelectedProduct(null)}>
@@ -256,26 +256,29 @@ export default function App() {
             <button onClick={() => setIsAdmin(!isAdmin)} className={`text-[10px] font-black uppercase px-4 py-2 rounded-full border transition-all ${isAdmin ? "text-red-500 border-red-500/30" : "text-gray-500 border-white/10"}`}>
               {isAdmin ? "Admin: ON" : "Admin Mode"}
             </button>
-            {isAdmin && <button onClick={() => setModalType('add')} className="bg-cyan-500 text-black p-2.5 rounded-xl hover:rotate-90 transition-all shadow-xl"><Plus size={20}/></button>}
+            {isAdmin && <button onClick={() => { setEditingItem(null); setModalType('add'); }} className="bg-cyan-500 text-black p-2.5 rounded-xl hover:rotate-90 transition-all shadow-xl"><Plus size={20}/></button>}
           </div>
         </div>
       </nav>
 
       {!selectedProduct ? (
-        /* --- VIEW 1: TRANG CHỦ --- */
         <main className="max-w-7xl mx-auto px-6 py-20 animate-in fade-in duration-1000">
           <header className="text-center mb-24 relative">
             <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 px-4 py-1.5 rounded-full mb-8">
               <Zap className="w-3.5 h-3.5 text-cyan-400 fill-cyan-400" />
-              <span className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-400">Cloud Sync Active</span>
+              <span className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-400">Cloud Sync: {products.length} Units</span>
             </div>
             <h1 className="text-7xl md:text-9xl font-black mb-10 tracking-tighter uppercase italic leading-none">
-              FUTURE <br /> <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 animate-gradient-x">SYSTEMS</span>
+              DESIGN <br /> <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 animate-gradient-x">YOUR POWER</span>
             </h1>
           </header>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
-            {products.length === 0 && <div className="col-span-full text-center py-20 opacity-30 italic font-bold uppercase tracking-widest">Đang tải dữ liệu...</div>}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
+            {products.length === 0 && (
+              <div className="col-span-full text-center py-20 opacity-30 italic font-bold uppercase tracking-widest">
+                {config?.apiKey ? "Đang tải dữ liệu từ Cloud..." : "Vui lòng cấu hình Firebase trên Vercel"}
+              </div>
+            )}
             {products.map(p => (
               <div key={p.id} className="group relative bg-white/[0.03] border border-white/10 rounded-[3.5rem] overflow-hidden hover:border-cyan-500/50 transition-all duration-700 flex flex-col shadow-2xl backdrop-blur-sm">
                 <div className="h-80 overflow-hidden relative cursor-pointer" onClick={() => setSelectedProduct(p)}>
@@ -284,8 +287,8 @@ export default function App() {
                   <div className="absolute top-8 left-8"><span className="bg-cyan-500 text-black px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest">{p.category}</span></div>
                   {isAdmin && (
                     <div className="absolute top-8 right-8 flex gap-2">
-                      <button onClick={(e) => { e.stopPropagation(); setEditingItem(p); setFormData(p); setModalType('edit'); }} className="bg-blue-500/80 p-3 rounded-2xl text-white shadow-xl"><Edit3 size={16}/></button>
-                      <button onClick={(e) => handleDelete(p.id, e)} className="bg-red-500/80 p-3 rounded-2xl text-white shadow-xl"><Trash2 size={16}/></button>
+                      <button onClick={(e) => { e.stopPropagation(); setEditingItem(p); setFormData(p); setModalType('edit'); }} className="bg-blue-500/80 p-3 rounded-2xl text-white shadow-xl transition-all active:scale-90"><Edit3 size={16}/></button>
+                      <button onClick={(e) => handleDelete(p.id, e)} className="bg-red-500/80 p-3 rounded-2xl text-white shadow-xl transition-all active:scale-90"><Trash2 size={16}/></button>
                     </div>
                   )}
                 </div>
@@ -304,7 +307,6 @@ export default function App() {
           </div>
         </main>
       ) : (
-        /* --- VIEW 2: CHI TIẾT --- */
         <main className="max-w-6xl mx-auto px-6 py-20 animate-in fade-in slide-in-from-right-12 duration-700">
           <button onClick={() => setSelectedProduct(null)} className="flex items-center gap-3 text-gray-400 hover:text-white mb-16 transition-all group font-black uppercase tracking-[0.4em] text-[10px]">
             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-2 transition-transform" /> Back to Store
@@ -317,14 +319,9 @@ export default function App() {
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent pointer-events-none opacity-60"></div>
               </div>
 
-              {/* Gallery Thumbnails */}
               <div className="grid grid-cols-4 gap-4 px-2">
                 {(selectedProduct.gallery || [selectedProduct.image]).map((img, idx) => (
-                  <button 
-                    key={idx}
-                    onClick={() => setActiveImage(img)}
-                    className={`aspect-square rounded-[1.5rem] overflow-hidden border-2 transition-all hover:scale-110 ${activeImage === img ? 'border-cyan-500 shadow-[0_0_20px_rgba(6,182,212,0.6)] scale-105' : 'border-white/5 opacity-50 hover:opacity-100'}`}
-                  >
+                  <button key={idx} onClick={() => setActiveImage(img)} className={`aspect-square rounded-[1.5rem] overflow-hidden border-2 transition-all hover:scale-110 ${activeImage === img ? 'border-cyan-500 shadow-[0_0_20px_rgba(6,182,212,0.6)] scale-105' : 'border-white/5 opacity-50 hover:opacity-100'}`}>
                     <img src={img} className="w-full h-full object-cover" alt="Preview" />
                   </button>
                 ))}
@@ -334,9 +331,7 @@ export default function App() {
             <div className="flex flex-col justify-center">
               <span className="text-cyan-400 font-black tracking-[0.5em] text-[10px] uppercase mb-4 block italic">Precision Engineering</span>
               <h2 className="text-6xl md:text-7xl font-black mb-10 tracking-tighter leading-none italic uppercase">{selectedProduct.name}</h2>
-              <p className="text-5xl font-black text-white mb-12 tracking-tighter italic border-l-4 border-cyan-500 pl-8 bg-white/5 py-4 rounded-r-3xl">
-                {selectedProduct.price}₫
-              </p>
+              <p className="text-5xl font-black text-white mb-12 tracking-tighter italic border-l-4 border-cyan-500 pl-8 bg-white/5 py-4 rounded-r-3xl shadow-xl">{selectedProduct.price}₫</p>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-16">
                  <DetailItem Icon={Cpu} label="Vi xử lý" value={selectedProduct.fullSpecs?.cpu} />
@@ -347,7 +342,7 @@ export default function App() {
                  <DetailItem Icon={Box} label="Vỏ máy" value={selectedProduct.fullSpecs?.case} />
               </div>
 
-              <button onClick={() => handleOrder(selectedProduct)} className="w-full bg-gradient-to-r from-cyan-400 to-blue-600 text-black py-8 rounded-[2.5rem] font-black text-2xl uppercase tracking-[0.2em] transition-all shadow-2xl active:scale-95 flex items-center justify-center gap-6 group italic shadow-cyan-500/20">
+              <button className="w-full bg-gradient-to-r from-cyan-400 to-blue-600 text-black py-8 rounded-[2.5rem] font-black text-2xl uppercase tracking-[0.2em] transition-all shadow-2xl active:scale-95 flex items-center justify-center gap-6 group italic shadow-cyan-500/20">
                 <MessageCircle size={32}/> BUILD MY SYSTEM
               </button>
             </div>
@@ -355,7 +350,6 @@ export default function App() {
         </main>
       )}
 
-      {/* --- ADMIN MODAL --- */}
       {modalType && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/95 backdrop-blur-md overflow-y-auto">
           <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-2xl rounded-[4rem] p-16 shadow-2xl my-auto animate-in zoom-in duration-300">
@@ -378,9 +372,9 @@ export default function App() {
               </div>
               <div className="col-span-full flex gap-4 pt-6">
                 <button type="submit" className="flex-1 bg-cyan-500 text-black font-black py-6 rounded-2xl shadow-xl hover:bg-cyan-400 uppercase flex items-center justify-center gap-3">
-                  <Save size={20}/> LƯU CẤU HÌNH
+                  <Save size={20}/> {status.type === 'loading' ? 'Đang lưu...' : 'Lưu cấu hình'}
                 </button>
-                <button type="button" onClick={() => setModalType(null)} className="px-10 bg-white/5 rounded-2xl font-black uppercase text-xs tracking-widest text-gray-500 hover:bg-white/10">HỦY</button>
+                <button type="button" onClick={() => setModalType(null)} className="px-10 bg-white/5 rounded-2xl font-black uppercase text-xs tracking-widest text-gray-500 hover:bg-white/10">Hủy</button>
               </div>
             </form>
           </div>
@@ -407,7 +401,7 @@ function DetailItem({ Icon, label, value }) {
       <div className="text-cyan-400 group-hover:scale-110 transition-transform">{Icon && <Icon className="w-7 h-7" />}</div>
       <div>
         <div className="text-[9px] font-black uppercase text-gray-500 tracking-widest italic">{label}</div>
-        <div className="text-sm font-bold text-white truncate max-w-[140px]">{value || "Premium"}</div>
+        <div className="text-sm font-bold text-white truncate max-w-[140px]">{value || "High-End"}</div>
       </div>
     </div>
   );
